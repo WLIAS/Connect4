@@ -274,48 +274,73 @@
   }
 
   function animateDrop(col, row, player, done) {
-    const cell = getCellElement(row, col);
-    if (!cell) {
+    const targetCell = getCellElement(row, col);
+    const topCell = getCellElement(0, col);
+    if (!targetCell || !topCell) {
       done();
       return;
     }
 
-    const piece = document.createElement("div");
     const scheme =
       settings.colourScheme === "black-white" ? "scheme-black-white" : "scheme-red-yellow";
+
+    const piece = document.createElement("div");
     piece.className =
       "piece piece--falling " +
       (player === 1 ? "piece--p1" : "piece--p2") +
       " " +
       scheme;
 
+    // Position relative to the board element
     const boardRect = els.board.getBoundingClientRect();
-    const cellRect = cell.getBoundingClientRect();
-    const startTop = boardRect.top + 8;
-    const endTop = cellRect.top + cellRect.height / 2;
-    const centerX = cellRect.left + cellRect.width / 2;
+    const targetRect = targetCell.getBoundingClientRect();
+    const topRect = topCell.getBoundingClientRect();
 
-    piece.style.position = "fixed";
+    const startY = topRect.top - boardRect.top + topRect.height / 2;
+    const endY = targetRect.top - boardRect.top + targetRect.height / 2;
+    const centerX = targetRect.left - boardRect.left + targetRect.width / 2;
+
+    piece.style.position = "absolute";
     piece.style.left = centerX + "px";
-    piece.style.top = startTop + "px";
+    piece.style.top = startY + "px";
     piece.style.transform = "translate(-50%, -50%)";
     piece.style.zIndex = "50";
-    document.body.appendChild(piece);
+    piece.style.pointerEvents = "none";
 
-    const fallDistance = Math.max(0, endTop - startTop);
-    const duration = Math.min(900, 120 + fallDistance * 0.85);
+    // Board must be position:relative for absolute children to work
+    els.board.style.position = "relative";
+    els.board.appendChild(piece);
+
+    const fallDistance = Math.max(0, endY - startY);
+    const duration = Math.min(600, 80 + fallDistance * 1.1);
     const start = performance.now();
 
     function frame(now) {
       const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const y = startTop + fallDistance * eased;
+      // Ease-in (accelerate like gravity)
+      const eased = t * t;
+      const y = startY + fallDistance * eased;
       piece.style.top = y + "px";
       if (t < 1) {
         requestAnimationFrame(frame);
       } else {
-        piece.remove();
-        done();
+        // Bounce effect
+        let bounceStart = performance.now();
+        const bounceHeight = Math.min(fallDistance * 0.08, 10);
+        const bounceDuration = 120;
+
+        function bounce(now2) {
+          const bt = Math.min(1, (now2 - bounceStart) / bounceDuration);
+          const by = endY - bounceHeight * Math.sin(bt * Math.PI);
+          piece.style.top = by + "px";
+          if (bt < 1) {
+            requestAnimationFrame(bounce);
+          } else {
+            piece.remove();
+            done();
+          }
+        }
+        requestAnimationFrame(bounce);
       }
     }
     requestAnimationFrame(frame);
